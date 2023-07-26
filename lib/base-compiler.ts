@@ -456,6 +456,22 @@ export class BaseCompiler implements ICompiler {
             execOptions.customCwd = path.dirname(inputFilename);
         }
 
+        // KL_APPEND_console.log
+        let _execOptions = JSON.parse(JSON.stringify(execOptions));
+        let _env = _execOptions.env || {};
+        _env.PATH = '...';
+        _execOptions.env = _env;
+        if (_env.lang == 'go' && _env.proj && _env.projDir) {
+            let arr = (_env.filename || '').split('/');
+            arr.pop();
+            options[options.length - 1] = _env.projDir + (arr.length ? `\\${arr.join("\\")}` : '');
+            execOptions.customCwd = options[options.length - 1];
+            _execOptions.customCwd = options[options.length - 1];
+        }
+        console.log(`### runCompiler => exec exe: ${compiler}
+        options: ${JSON.stringify(options)}
+        execOptions: ${JSON.stringify(_execOptions)}`);  
+
         const result = await this.exec(compiler, options, execOptions);
         return {
             ...this.transformToCompilationResult(result, inputFilename),
@@ -1877,6 +1893,11 @@ export class BaseCompiler implements ICompiler {
 
         this.fixExecuteParametersForInterpreting(executeParameters, outputFilename, key);
 
+        // KL_APPEND_console.log
+        console.log(`### handleInterpreting => runExecutable exe: ${this.compiler.exe}
+        params: ${JSON.stringify(executeParameters)}
+        dir: ${dirPath}`);
+
         const result = await this.runExecutable(this.compiler.exe, executeParameters, dirPath);
         return {
             ...result,
@@ -1936,6 +1957,12 @@ export class BaseCompiler implements ICompiler {
         }
 
         executeParameters.ldPath = this.getSharedLibraryPathsAsLdLibraryPathsForExecution(key.libraries);
+        
+        // KL_APPEND_console.log
+        console.log(`### doExecution => runExecutable exe: ${buildResult.executableFilename}
+        params: ${JSON.stringify(executeParameters)}
+        dir: ${buildResult.dirPath}`)
+
         const result = await this.runExecutable(buildResult.executableFilename, executeParameters, buildResult.dirPath);
         return {
             ...result,
@@ -2056,6 +2083,7 @@ export class BaseCompiler implements ICompiler {
         backendOptions,
         libraries: CompileChildLibraries[],
         tools,
+        extOptions,
     ) {
         const inputFilenameSafe = this.filename(inputFilename);
 
@@ -2076,6 +2104,16 @@ export class BaseCompiler implements ICompiler {
         );
 
         const execOptions = this.getDefaultExecOptions();
+
+        // KL_APPEND
+        extOptions = extOptions || {};
+        if (extOptions.proj && extOptions.projDir) {
+            execOptions.env.proj = extOptions.proj;
+            execOptions.env.lang = extOptions.lang;
+            execOptions.env.filename = extOptions.filename;
+            execOptions.env.projDir = extOptions.projDir;
+        }
+
         execOptions.ldPath = this.getSharedLibraryPathsAsLdLibraryPaths([]);
 
         this.applyOverridesToExecOptions(execOptions, overrides);
@@ -2248,6 +2286,34 @@ export class BaseCompiler implements ICompiler {
             return [{...asmResult, asm: '<Compilation failed>'}];
         }
 
+        // KL_APPEND
+        if (extOptions.lang == 'go' && extOptions.proj && extOptions.projDir) {
+            let line = (asmResult.stderr || []).length ? (asmResult.stderr || [])[0] : {};
+            let pstr = line['text'] || '';
+            let dstr = '(' + extOptions.projDir + '\\';
+            if (pstr.startsWith('# github.com/')) {
+                pstr = pstr.replace('# github.com/', '');
+                let arr = pstr.split('/');
+                if (arr.length >= 2) {
+                    pstr = 'github.com/' + arr[0] + '/';
+                } else {
+                    pstr = 'github.com/';
+                }
+                
+                (asmResult.stderr || []).map(o => {
+                    var text = o.text;
+                    text = text.replace(dstr, '(');
+                    text = text.replace(pstr, '');
+                    o.text = text;
+                });
+            } else {
+                (asmResult.stderr || []).map(o => {
+                    var text = o.text;
+                    text = text.replace(dstr, '(');
+                    o.text = text;
+                });
+            }
+        }
         return this.checkOutputFileAndDoPostProcess(asmResult, outputFilename, filters);
     }
 
@@ -2583,6 +2649,17 @@ export class BaseCompiler implements ICompiler {
         libraries: CompileChildLibraries[],
         files,
     ) {
+         // KL_APPEND
+        const extOptions: Record<string, any> = {};
+        if (backendOptions.proj && backendOptions.projDir) {
+            extOptions.proj = backendOptions.proj;
+            extOptions.lang = backendOptions.lang;
+            extOptions.filename = backendOptions.filename;
+            extOptions.projDir = backendOptions.projDir;
+        }
+        delete backendOptions['proj'], backendOptions['lang'], backendOptions['filename'], backendOptions['projDir'];
+
+
         const optionsError = this.checkOptions(options);
         if (optionsError) throw optionsError;
         const sourceError = this.checkSource(source);
@@ -2671,6 +2748,7 @@ export class BaseCompiler implements ICompiler {
                     backendOptions,
                     libraries,
                     tools,
+                    extOptions,
                 );
 
                 return await this.afterCompilation(

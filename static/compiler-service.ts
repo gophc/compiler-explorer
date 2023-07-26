@@ -24,20 +24,20 @@
 
 import $ from 'jquery';
 import _ from 'underscore';
-import {LRUCache} from 'lru-cache';
-import {EventEmitter} from 'golden-layout';
+import { LRUCache } from 'lru-cache';
+import { EventEmitter } from 'golden-layout';
 
-import {options} from './options.js';
+import { options } from './options.js';
 
-import {ResultLine} from '../types/resultline/resultline.interfaces.js';
+import { ResultLine } from '../types/resultline/resultline.interfaces.js';
 
 import jqXHR = JQuery.jqXHR;
 import ErrorTextStatus = JQuery.Ajax.ErrorTextStatus;
-import {CompilerInfo} from '../types/compiler.interfaces.js';
-import {CompilationResult, FiledataPair} from '../types/compilation/compilation.interfaces.js';
-import {CompilationStatus} from './compiler-service.interfaces.js';
-import {IncludeDownloads, SourceAndFiles} from './download-service.js';
-import {SentryCapture} from './sentry.js';
+import { CompilerInfo } from '../types/compiler.interfaces.js';
+import { CompilationResult, FiledataPair } from '../types/compilation/compilation.interfaces.js';
+import { CompilationStatus } from './compiler-service.interfaces.js';
+import { IncludeDownloads, SourceAndFiles } from './download-service.js';
+import { SentryCapture } from './sentry.js';
 
 const ASCII_COLORS_RE = new RegExp(/\x1B\[[\d;]*m(.\[K)?/g);
 
@@ -71,7 +71,7 @@ export class CompilerService {
     public processFromLangAndCompiler(
         langId: string | null,
         compilerId: string,
-    ): {langId: string | null; compiler: CompilerInfo | null} | null {
+    ): { langId: string | null; compiler: CompilerInfo | null } | null {
         try {
             if (langId) {
                 if (!compilerId) {
@@ -132,15 +132,15 @@ export class CompilerService {
         };
     }
 
-    public getGroupsInUse(langId: string): {value: string; label: string}[] {
+    public getGroupsInUse(langId: string): { value: string; label: string }[] {
         return _.chain(this.getCompilersForLang(langId))
             .map((compiler: CompilerInfo) => compiler)
             .uniq(false, compiler => compiler.group)
             .map(compiler => {
-                return {value: compiler.group, label: compiler.groupName || compiler.group};
+                return { value: compiler.group, label: compiler.groupName || compiler.group };
             })
             .sort((a, b) => {
-                return a.label.localeCompare(b.label, undefined /* Ignore language */, {sensitivity: 'base'}) === 0;
+                return a.label.localeCompare(b.label, undefined /* Ignore language */, { sensitivity: 'base' }) === 0;
             })
             .value();
     }
@@ -224,15 +224,34 @@ export class CompilerService {
                 };
             }
         }
+        const compilerId = encodeURIComponent(request.compiler);
+        let api = `${this.getBaseUrl()}api/compiler/${compilerId}/compile`;
+        // KL_ADD
+        if ((window || {})['$_GET'] && (window || {})['$_GET'].proj) {
+            let proj = (window || {})['$_GET'].proj;
+            let projDir = (window || {})['$_GET'].projDir || '';
+            api += `?proj=${proj}`;
+            api += projDir ? `&projDir=${projDir}` : '';
+            api += request.filename ? `&filename=${request.filename}` : '';
+        }
+
         return new Promise((resolve, reject) => {
-            const compilerId = encodeURIComponent(request.compiler);
             $.ajax({
                 type: 'POST',
-                url: `${this.getBaseUrl()}api/compiler/${compilerId}/compile`,
+                url: api,
                 dataType: 'json',
                 contentType: 'application/json',
                 data: jsonRequest,
                 success: result => {
+                    if (result.asm && result.asm.length) {
+                        result.asm = (result.asm || []).map(o => {
+                            if (o.source && o.source.file) {
+                                o.source.file = o.source.file.replace('\\', '/');
+                            }
+                            return o;
+                        });
+                    }
+                    
                     if (result && result.okToCache && options.doCache) {
                         this.cache.set(jsonRequest, result);
                     }
@@ -340,7 +359,7 @@ export class CompilerService {
     }
 
     public static getSelectizerOrder() {
-        return [{field: '$order'}, {field: '$score'}, {field: 'name'}];
+        return [{ field: '$order' }, { field: '$score' }, { field: 'name' }];
     }
 
     public static doesCompilationResultHaveWarnings(result: CompilationResult) {
@@ -369,7 +388,7 @@ export class CompilerService {
         } else if (this.doesCompilationResultHaveWarnings(result)) {
             code = 2;
         }
-        return {code: code, compilerOut: result.code};
+        return { code: code, compilerOut: result.code };
     }
 
     private static getAriaLabel(status: CompilationStatus) {

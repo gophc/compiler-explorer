@@ -21,32 +21,98 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
+import path from 'path';
+import fs from 'fs-extra';
 
 import bodyParser from 'body-parser';
 import express from 'express';
 import _ from 'underscore';
 
-import {CompilerInfo} from '../../types/compiler.interfaces.js';
-import {Language, LanguageKey} from '../../types/languages.interfaces.js';
-import {assert, unwrap} from '../assert.js';
-import {ClientStateNormalizer} from '../clientstate-normalizer.js';
-import {isString, unique} from '../../shared/common-utils.js';
-import {logger} from '../logger.js';
-import {ClientOptionsHandler} from '../options-handler.js';
-import {PropertyGetter} from '../properties.interfaces.js';
-import {BaseShortener, getShortenerTypeByKey} from '../shortener/index.js';
-import {StorageBase} from '../storage/index.js';
+import { CompilerInfo } from '../../types/compiler.interfaces.js';
+import { Language, LanguageKey } from '../../types/languages.interfaces.js';
+import { assert, unwrap } from '../assert.js';
+import { ClientStateNormalizer } from '../clientstate-normalizer.js';
+import { isString, unique } from '../../shared/common-utils.js';
+import { logger } from '../logger.js';
+import { ClientOptionsHandler } from '../options-handler.js';
+import { PropertyGetter } from '../properties.interfaces.js';
+import { BaseShortener, getShortenerTypeByKey } from '../shortener/index.js';
+import { StorageBase } from '../storage/index.js';
 import * as utils from '../utils.js';
 
-import {withAssemblyDocumentationProviders} from './assembly-documentation.js';
-import {CompileHandler} from './compile.js';
-import {FormattingHandler} from './formatting.js';
-import {getSiteTemplates} from './site-templates.js';
-import {SentryCapture} from '../sentry.js';
+import { withAssemblyDocumentationProviders } from './assembly-documentation.js';
+import { CompileHandler } from './compile.js';
+import { FormattingHandler } from './formatting.js';
+import { getSiteTemplates } from './site-templates.js';
+import { SentryCapture } from '../sentry.js';
 
 function methodNotAllowed(req: express.Request, res: express.Response) {
     res.send('Method Not Allowed');
     return res.status(405).end();
+}
+
+const projMap = { swiss: `D:\\gitee\\swiss`, gophc: `D:\\gitee\\gophc` };
+
+async function travelFile(dir: string, proper: string, deep: string[], callBack) {
+    let files = await fs.readdir(dir);
+    await Promise.allSettled(files.map(async file => {
+        if (!file || file[0] == '.') {
+            return;
+        }
+        let pathname = path.join(dir, file);
+        let stat = await fs.stat(pathname);
+        if (stat.isDirectory()) {
+            if (file == 'vendor') {
+                return;
+            }
+            let deep2 = deep.slice();
+            deep2.push(file);
+            await travelFile(pathname, proper ? `${proper}/${file}` : file, deep2, callBack);
+        } else if (stat.isFile()) {
+            let mtime = stat.mtime.valueOf();
+            await callBack(pathname, proper, file, deep, mtime);
+        }
+    }));
+}
+
+const fileTextCacheMap = {};
+
+async function loadProjectContent(dir: string) {
+    let files: Record<string, any>[] = [];
+    await travelFile(dir, '', [], async (pathname, proper, file, deep, mtime) => {
+        if (pathname.endsWith('.md') || pathname.endsWith('.sum')
+        || pathname.endsWith('.log') || pathname.endsWith('.exe')
+        || pathname.endsWith('.zip') || pathname.endsWith('.tmp')
+            || pathname.endsWith('LICENSE') || pathname.endsWith('_test.go')) {
+            return;
+        }
+        let text = '';
+        if (pathname in fileTextCacheMap) {
+            let ctmp = fileTextCacheMap[pathname];
+            if (ctmp[0] >= mtime) {
+                text = ctmp[1]
+                mtime = -mtime
+            } else {
+                delete fileTextCacheMap[pathname];
+            }
+        }
+
+        if (!text) {
+            let content = await fs.readFile(pathname);
+            text = content.toString();
+            fileTextCacheMap[pathname] = [mtime, text];
+        }
+
+        let tmp = {
+            properName: proper ? `${proper}/${file}` : file,
+            isIncluded: true,
+            deep: deep,
+            mtime: mtime,
+            content: text,
+        };
+        files.push(tmp);
+    });
+    return files;
 }
 
 export class ApiHandler {
@@ -96,11 +162,19 @@ export class ApiHandler {
             .all(methodNotAllowed);
 
         const maxUploadSize = ceProps('maxUploadSize', '1mb');
-        const textParser = bodyParser.text({limit: ceProps('bodyParserLimit', maxUploadSize), type: () => true});
+        const textParser = bodyParser.text({ limit: ceProps('bodyParserLimit', maxUploadSize), type: () => true });
 
         this.handle
             .route('/compiler/:compiler/compile')
-            .post(textParser, compileHandler.handle.bind(compileHandler))
+            .post(textParser, (req: express.Request, res: express.Response, next: express.NextFunction) => {
+                let proj = String(req.query.proj || '');
+                let filename = String(req.query.filename || '');
+                let projDir = projMap[proj] ? projMap[proj] : String(req.query.projDir || '');
+                req.query.proj = proj;
+                req.query.filename = filename;
+                req.query.projDir = projDir;
+                compileHandler.handle(req, res, next);
+            })
             .all(methodNotAllowed);
         this.handle
             .route('/compiler/:compiler/cmake')
@@ -130,10 +204,44 @@ export class ApiHandler {
                 res.send(all);
             })
             .all(methodNotAllowed);
+
         this.handle
             .route('/siteTemplates')
             .get((req, res) => {
                 res.send(getSiteTemplates());
+            })
+            .all(methodNotAllowed);
+
+        this.handle
+            .route('/loadProject')
+            .get(async (req, res) => {
+                let proj = String(req.query.proj || '');
+
+                let ret: {
+                    mtime: string,
+                    proj: string,
+                    projDir: string,
+                    mainSourcefilename: string,
+                    files: Record<string, any>[]
+                } = {
+                    mtime: '',
+                    proj: proj,
+                    projDir: '',
+                    mainSourcefilename: '__main__.go',
+                    files: []
+                };
+                let projDir = projMap[proj] ? projMap[proj] : String(req.query.projDir || '');
+                if (path.isAbsolute(projDir)) {
+                    try {
+                        const res = await fs.stat(projDir);
+                        ret.projDir = projDir;
+                        ret.mtime = res.mtime.toString().replaceAll(' GMT+0800 (中国标准时间)', '');
+                        ret.files = await loadProjectContent(projDir);
+                    } catch (err) {
+                        logger.warn(`Unable to stat ${projDir} project #${proj}: `, err);
+                    }
+                }
+                res.send(ret);
             })
             .all(methodNotAllowed);
 
@@ -231,8 +339,8 @@ export class ApiHandler {
         res.set('Content-Type', 'text/plain');
         res.send(
             utils.padRight(title, maxLength) +
-                ' | Name\n' +
-                list.map(lang => utils.padRight(lang.id, maxLength) + ' | ' + lang.name).join('\n'),
+            ' | Name\n' +
+            list.map(lang => utils.padRight(lang.id, maxLength) + ' | ' + lang.name).join('\n'),
         );
     }
 

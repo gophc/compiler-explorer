@@ -155,11 +155,11 @@ class DotNetCompiler extends BaseCompiler {
         return await this.buildToDll(compiler, options, inputFilename, execOptions);
     }
 
-    override async doCompilation(inputFilename, dirPath, key, options, filters, backendOptions, libraries, tools) {
+    override async doCompilation(inputFilename, dirPath, key, options, filters, backendOptions, libraries, tools, extOptions) {
         const inputFilenameSafe = this.filename(inputFilename);
         const sourceFile = path.basename(inputFilenameSafe);
         await this.writeProjectfile(dirPath, filters.binary, sourceFile);
-        return super.doCompilation(inputFilename, dirPath, key, options, filters, backendOptions, libraries, tools);
+        return super.doCompilation(inputFilename, dirPath, key, options, filters, backendOptions, libraries, tools, extOptions);
     }
 
     async buildToDll(

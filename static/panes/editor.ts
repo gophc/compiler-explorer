@@ -28,33 +28,33 @@ import * as colour from '../colour.js';
 import * as loadSaveLib from '../widgets/load-save.js';
 import * as Components from '../components.js';
 import * as monaco from 'monaco-editor';
-import {Buffer} from 'buffer';
-import {options} from '../options.js';
-import {Alert} from '../widgets/alert.js';
-import {ga} from '../analytics.js';
+import { Buffer } from 'buffer';
+import { options } from '../options.js';
+import { Alert } from '../widgets/alert.js';
+import { ga } from '../analytics.js';
 import * as monacoVim from 'monaco-vim';
 import * as monacoConfig from '../monaco-config.js';
 import * as quickFixesHandler from '../quick-fixes-handler.js';
 import TomSelect from 'tom-select';
-import {SiteSettings} from '../settings.js';
+import { SiteSettings } from '../settings.js';
 import '../formatter-registry';
 import '../modes/_all';
-import {MonacoPane} from './pane.js';
-import {Hub} from '../hub.js';
-import {MonacoPaneState} from './pane.interfaces.js';
-import {Container} from 'golden-layout';
-import {EditorState, LanguageSelectData} from './editor.interfaces.js';
-import {Language, LanguageKey} from '../../types/languages.interfaces.js';
-import {editor} from 'monaco-editor';
+import { MonacoPane } from './pane.js';
+import { Hub } from '../hub.js';
+import { MonacoPaneState } from './pane.interfaces.js';
+import { Container } from 'golden-layout';
+import { EditorState, LanguageSelectData } from './editor.interfaces.js';
+import { Language, LanguageKey } from '../../types/languages.interfaces.js';
+import { editor } from 'monaco-editor';
 import IModelDeltaDecoration = editor.IModelDeltaDecoration;
-import {MessageWithLocation, ResultLine} from '../../types/resultline/resultline.interfaces.js';
-import {CompilerInfo} from '../../types/compiler.interfaces.js';
-import {CompilationResult} from '../../types/compilation/compilation.interfaces.js';
-import {Decoration, Motd} from '../motd.interfaces.js';
-import type {escape_html} from 'tom-select/dist/types/utils';
-import {Compiler} from './compiler.js';
-import {assert, unwrap} from '../assert.js';
-import {escapeHTML, isString} from '../../shared/common-utils.js';
+import { MessageWithLocation, ResultLine } from '../../types/resultline/resultline.interfaces.js';
+import { CompilerInfo } from '../../types/compiler.interfaces.js';
+import { CompilationResult } from '../../types/compilation/compilation.interfaces.js';
+import { Decoration, Motd } from '../motd.interfaces.js';
+import type { escape_html } from 'tom-select/dist/types/utils';
+import { Compiler } from './compiler.js';
+import { assert, unwrap } from '../assert.js';
+import { escapeHTML, isString } from '../../shared/common-utils.js';
 
 const loadSave = new loadSaveLib.LoadSave();
 const languages = options.languages;
@@ -116,9 +116,9 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
 
         if ((state.lang as any) === undefined && Object.keys(languages).length > 0) {
             // Primarily a diagnostic for urls created outside CE. Addresses #4817.
-            this.alertSystem.alert('State Error', 'No language specified for editor', {isError: true});
+            this.alertSystem.alert('State Error', 'No language specified for editor', { isError: true });
         } else if (!(state.lang in languages) && Object.keys(languages).length > 0) {
-            this.alertSystem.alert('State Error', 'Unknown language specified for editor', {isError: true});
+            this.alertSystem.alert('State Error', 'Unknown language specified for editor', { isError: true });
         }
 
         if (this.currentLanguage) this.onLanguageChange(this.currentLanguage.id, true);
@@ -256,7 +256,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
             if (match !== this.decorations[decoration.name]) {
                 decorationsDirty = true;
                 this.decorations[decoration.name] = match
-                    ? [{range: match.range, options: decoration.decoration}]
+                    ? [{ range: match.range, options: decoration.decoration }]
                     : undefined;
             }
         });
@@ -931,14 +931,14 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
             typeof navigator.clipboard === 'undefined'
                 ? false
                 : navigator.userAgent.includes('Firefox')
-                ? 'readText' in navigator.clipboard
-                : true;
+                    ? 'readText' in navigator.clipboard
+                    : true;
         if (!supportsPaste) {
             this.editor.addAction({
                 id: 'firefoxDoesntSupportPaste',
                 label: "Firefox doesn't support context-menu paste",
                 contextMenuGroupId: '9_cutcopypaste',
-                run: () => {},
+                run: () => { },
             });
         }
 
@@ -1106,7 +1106,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         this.alertSystem.ask(
             'Changes were made to the code',
             'Changes were made to the code while it was being processed. Overwrite changes?',
-            {yes: yes, no: undefined},
+            { yes: yes, no: undefined },
         );
     }
 
@@ -1231,7 +1231,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
     override onSettingsChange(newSettings: SiteSettings): void {
         const before = this.settings;
         const after = newSettings;
-        this.settings = {...newSettings};
+        this.settings = { ...newSettings };
 
         this.editor.updateOptions({
             autoIndent: this.settings.autoIndent ? 'advanced' : 'none',
@@ -1286,6 +1286,57 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         }
 
         if (this.hub.hasTree()) {
+            // KL_APPEND
+            if ((window || {})['$_GET'] && (window || {})['$_GET'].proj) {
+                const trees = this.hub.getTrees();
+                const cacheFiles: Record<string, number> = {};
+                const isInTrees = (name, filename) => {
+                    if (filename in cacheFiles) {
+                        cacheFiles[filename] += 1;
+                        return true;
+                    }
+                    for (const tree of trees) {
+                        const file = tree.multifileService.getFileByFilename(filename);
+                        if (file && file.filename == name) {
+                            cacheFiles[filename] = 1;
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+                const lines: Record<number, boolean> = {};
+
+                for (const [compilerId, asm] of Object.entries(this.asmByCompiler)) {
+                    asm?.forEach(asmLine => {
+                        let foundInTrees = false;
+                        if (asmLine.source && asmLine.source.line > 0) {
+                            const sourcefilename = asmLine.source.file ? asmLine.source.file : '';
+                            if (isInTrees(this.filename, sourcefilename)) {
+                                foundInTrees = true;
+                                lines[asmLine.source.line - 1] = true;
+                            }
+                        }
+
+                        if (!foundInTrees) {
+                            if (
+                                asmLine.source &&
+                                (asmLine.source.file === null || asmLine.source.mainsource) &&
+                                asmLine.source.line > 0
+                            ) {
+                                lines[asmLine.source.line - 1] = true;
+                            }
+                        }
+                    });
+                }
+
+                // Now assign an ordinal to each used line.
+                let ordinal = 0;
+                Object.keys(lines).forEach(k => {
+                    lines[k] = ordinal++;
+                });
+                this.updateColours(lines);
+            }
+
             return;
         }
 
@@ -1445,7 +1496,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         result: CompilationResult,
         compilerName: string,
         compilerId: number | string,
-    ): (ResultLine & {sourcePane: string})[] {
+    ): (ResultLine & { sourcePane: string })[] {
         const compilerTitle = compilerName + ' #' + compilerId;
         let all = this.addSource(result.stdout, compilerTitle);
 
@@ -1466,7 +1517,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         return all;
     }
 
-    collectOutputWidgets(output: (ResultLine & {sourcePane: string})[]): {
+    collectOutputWidgets(output: (ResultLine & { sourcePane: string })[]): {
         fixes: monaco.languages.CodeAction[];
         widgets: editor.IMarkerData[];
     } {
@@ -1664,11 +1715,11 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
     // b - colEnd points to the character immediately following the token
     // e.g.: "this->callableMethod ( x, y );"
     //              ^a   ^column  ^b
-    getTokenSpan(lineNum: number, column: number): {colBegin: number; colEnd: number} {
+    getTokenSpan(lineNum: number, column: number): { colBegin: number; colEnd: number } {
         const model = this.editor.getModel();
         if (model && (lineNum < 1 || lineNum > model.getLineCount())) {
             // #3592 Be forgiving towards parsing errors
-            return {colBegin: 0, colEnd: 0};
+            return { colBegin: 0, colEnd: 0 };
         }
 
         if (model && lineNum <= model.getLineCount()) {
@@ -1692,16 +1743,16 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
                         }
                         const currentOffset = tokens[0][i].offset;
                         if (column <= currentOffset) {
-                            return {colBegin: lastOffset + 1, colEnd: currentOffset + 1};
+                            return { colBegin: lastOffset + 1, colEnd: currentOffset + 1 };
                         } else {
                             lastOffset = currentOffset;
                         }
                     }
-                    return {colBegin: lastOffset + 1, colEnd: line.length + 1};
+                    return { colBegin: lastOffset + 1, colEnd: line.length + 1 };
                 }
             }
         }
-        return {colBegin: column, colEnd: column + 1};
+        return { colBegin: column, colEnd: column + 1 };
     }
 
     pushRevealJump(): void {
@@ -1766,7 +1817,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
                 this.pushRevealJump();
                 this.editor.revealLineInCenter(lineNum);
                 this.editor.focus();
-                this.editor.setPosition({column: column || 0, lineNumber: lineNum});
+                this.editor.setPosition({ column: column || 0, lineNumber: lineNum });
             }
             this.decorations.linkedCode = [];
             if (lineNum && lineNum !== -1) {
@@ -1804,7 +1855,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
                             },
                             inlineClassName: 'flow-highlight',
                             isWholeLine: false,
-                            hoverMessage: {value: ri.text},
+                            hoverMessage: { value: ri.text },
                         },
                     };
                 });
@@ -1921,7 +1972,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
     updateEditorCode(): void {
         this.setSource(
             this.editorSourceByLang[this.currentLanguage?.id ?? ''] ||
-                languages[this.currentLanguage?.id ?? '']?.example,
+            languages[this.currentLanguage?.id ?? '']?.example,
         );
     }
 
@@ -1977,7 +2028,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         return this.getSelectizeRenderHtml(data, escape, 20, 20);
     }
 
-    onCompiler(compilerId: number, compiler: unknown, options: string, editorId: number, treeId: number): void {}
+    onCompiler(compilerId: number, compiler: unknown, options: string, editorId: number, treeId: number): void { }
 
     updateLanguageTooltip() {
         this.languageInfoButton.popover('dispose');

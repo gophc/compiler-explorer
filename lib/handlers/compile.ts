@@ -542,6 +542,21 @@ export class CompileHandler {
         const {source, options, backendOptions, filters, bypassCache, tools, executionParameters, libraries} =
             parsedRequest;
 
+        // KL_APPEND
+        let proj = String(req.query.proj || '');
+        let projDir = String(req.query.projDir || '');
+        let filename = String(req.query.filename || '');
+        let lang = String(req.body.lang || 'unknown');
+        let extOptions = {
+            proj, lang, filename, projDir, 
+        };
+        if (proj && projDir) {
+            backendOptions.proj = proj;
+            backendOptions.lang = lang;
+            backendOptions.projDir = projDir;
+            backendOptions.filename = filename;
+        }
+
         let files;
         if (req.body.files) files = req.body.files;
 
@@ -579,6 +594,7 @@ export class CompileHandler {
                     if (result.didExecute || (result.execResult && result.execResult.didExecute))
                         this.executeCounter.inc({language: compiler.lang.id});
                     if (req.accepts(['text', 'json']) === 'json') {
+                        result.extOptions = extOptions;
                         res.send(result);
                     } else {
                         res.set('Content-Type', 'text/plain');

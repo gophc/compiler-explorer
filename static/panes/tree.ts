@@ -23,24 +23,24 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 import $ from 'jquery';
-import {MultifileFile, MultifileService, MultifileServiceState} from '../multifile-service.js';
-import {LineColouring} from '../line-colouring.js';
+import { MultifileFile, MultifileService, MultifileServiceState } from '../multifile-service.js';
+import { LineColouring } from '../line-colouring.js';
 import * as utils from '../utils.js';
-import {Settings, SiteSettings} from '../settings.js';
-import {PaneRenaming} from '../widgets/pane-renaming.js';
-import {Hub} from '../hub.js';
-import {EventHub} from '../event-hub.js';
-import {Alert} from '../widgets/alert.js';
+import { Settings, SiteSettings } from '../settings.js';
+import { PaneRenaming } from '../widgets/pane-renaming.js';
+import { Hub } from '../hub.js';
+import { EventHub } from '../event-hub.js';
+import { Alert } from '../widgets/alert.js';
 import * as Components from '../components.js';
-import {ga} from '../analytics.js';
+import { ga } from '../analytics.js';
 import TomSelect from 'tom-select';
-import {Toggles} from '../widgets/toggles.js';
-import {options} from '../options.js';
-import {saveAs} from 'file-saver';
-import {Container} from 'golden-layout';
+import { Toggles } from '../widgets/toggles.js';
+import { options } from '../options.js';
+import { saveAs } from 'file-saver';
+import { Container } from 'golden-layout';
 import _ from 'underscore';
-import {assert, unwrap, unwrapString} from '../assert.js';
-import {escapeHTML} from '../../shared/common-utils.js';
+import { assert, unwrap, unwrapString } from '../assert.js';
+import { escapeHTML } from '../../shared/common-utils.js';
 
 const languages = options.languages;
 
@@ -74,7 +74,7 @@ export class Tree {
     private selectize: TomSelect;
     private languageBtn: JQuery;
     private toggleCMakeButton: Toggles;
-    private debouncedEmitChange: () => void = () => {};
+    private debouncedEmitChange: () => void = () => { };
     private hideable: JQuery;
     private readonly topBar: JQuery;
     private paneName: string;
@@ -114,6 +114,47 @@ export class Tree {
             state.compilerLanguageId = this.settings.defaultLanguage ?? 'c++';
         }
 
+        // KL_ADD
+        if ((window || {})['$_GET'] && (window || {})['$_GET'].proj) {
+            state.files = [];
+            state.newFileId = 1;
+            setTimeout(async () => {
+                const res = await this.loadProject((window || {})['$_GET'].proj, (window || {})['$_GET'].projDir || '');
+                let mainSourcefilename = (res || {})['mainSourcefilename'] || 'main.go';
+                let files = (res || {})['files'] || [];
+                files.sort((a, b) => {
+                    let al = (a.deep || []).length;
+                    let bl = (b.deep || []).length;
+                    let ll = al <= bl ? al : bl;
+                    for (var i = 0; i < ll; i++) {
+                        let ap = a.deep[i];
+                        let bp = b.deep[i];
+                        if (ap != bp) {
+                            return ap > bp ? 1 : -1;
+                        }
+                    }
+                    if (al != bl) {
+                        return al < bl ? 1 : -1;
+                    }
+                    return a.properName > b.properName ? 1 : -1;
+                });
+                files.forEach((val, idx) => {
+                    let properName = val.properName || 'unknown.file';
+                    let content = val.content || '';
+                    let isIncluded = val.isIncluded || false;
+                    this.multifileService.appendFile(idx + 1, properName, mainSourcefilename,
+                        content, isIncluded, (file: MultifileFile) => {
+                            this.refresh();
+                            if (file.filename === 'CMakeLists.txt') {
+                                // todo: find a way to toggle on CMake checkbox...
+                                this.editFile(file.fileId);
+                            }
+                        });
+                });
+                this.multifileService.setNewFileId(((res || {})['files'] || []).length + 1);
+            }, 0);
+        }
+
         this.multifileService = new MultifileService(this.hub, this.alertSystem, state);
         this.lineColouring = new LineColouring(this.multifileService);
         this.ourCompilers = {};
@@ -150,6 +191,14 @@ export class Tree {
 
         this.refresh();
         this.eventHub.emit('findEditors');
+    }
+
+    private async loadProject(proj: string, projDir: string): Promise<Record<string, any>[]> {
+        return new Promise<Record<string, any>[]>(resolve => {
+            let t = (new Date()).valueOf();
+            let api = `api/loadProject?proj=${proj}` + (projDir ? `&projDir=${projDir}` : '') + `&t=${t}`;
+            $.getJSON(window.location.origin + this.httpRoot + api, resolve);
+        });
     }
 
     private initInputs(state: TreeState) {
@@ -564,7 +613,7 @@ export class Tree {
 
     private async openZipFile(htmlfile) {
         if (!htmlfile.name.toLowerCase().endsWith('.zip')) {
-            this.alertSystem.alert('Load project file', 'Projects can only be loaded from .zip files', {isError: true});
+            this.alertSystem.alert('Load project file', 'Projects can only be loaded from .zip files', { isError: true });
             return;
         }
 

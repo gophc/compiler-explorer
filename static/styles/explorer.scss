@@ -469,7 +469,11 @@ pre.content.wrap * {
 
 .change-language {
     line-height: 14px;
-    min-width: 200px !important;
+    min-width: 100px !important;
+}
+
+.ts-control > input {
+    min-width: 5rem !important;
 }
 
 .change-language .ts-input {

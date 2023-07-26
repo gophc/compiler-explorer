@@ -25,9 +25,9 @@
 import _ from 'underscore';
 import path from 'path-browserify';
 import JSZip from 'jszip';
-import {Hub} from './hub.js';
-import {unwrap} from './assert.js';
-import {FiledataPair} from '../types/compilation/compilation.interfaces.js';
+import { Hub } from './hub.js';
+import { unwrap } from './assert.js';
+import { FiledataPair } from '../types/compilation/compilation.interfaces.js';
 const languages = require('./options').options.languages;
 
 export interface MultifileFile {
@@ -170,6 +170,27 @@ export class MultifileService {
         });
     }
 
+    public appendFile(newFileId: number, properName: string, mainSourcefilename: string, content: string, isIncluded: boolean, callback) {
+        const file: MultifileFile = {
+            fileId: newFileId,
+            filename: properName,
+            isIncluded: isIncluded,
+            isOpen: false,
+            editorId: -1,
+            isMainSource: properName === mainSourcefilename,
+            content: content,
+            langId: this.getLanguageIdFromFilename(properName),
+        };
+
+        this.addFile(file);
+        callback(file);
+    }
+
+    public setNewFileId(newFileId: number) {
+        newFileId = newFileId || 1;
+        this.newFileId = newFileId;
+    }
+
     public async saveProjectToZipfile(callback: (any) => void) {
         const zip = new JSZip();
 
@@ -179,7 +200,7 @@ export class MultifileService {
             }
         });
 
-        zip.generateAsync({type: 'blob'}).then(
+        zip.generateAsync({ type: 'blob' }).then(
             blob => {
                 callback(blob);
             },
@@ -348,7 +369,7 @@ export class MultifileService {
         return file && file.editorId > 0 ? file.editorId : null;
     }
 
-    private getFileByFilename(filename: string): MultifileFile | undefined {
+    public getFileByFilename(filename: string): MultifileFile | undefined {
         return this.files.find((file: MultifileFile) => {
             return file.filename === filename;
         });

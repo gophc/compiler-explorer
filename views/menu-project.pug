@@ -1,0 +1,14 @@
+-
+    let projs = [
+        {name: 'swiss'},
+        {name: 'gophc'},
+    ];
+
+each proj, index in projs
+    - let showName = proj.name.charAt(0).toUpperCase() + proj.name.slice(1) + ' Proj';
+    button.dropdown-item.btn#swiss
+        a.dropdown-item(href=`/?proj=${proj.name}` + (proj.projDir ? `&projDir=${proj.projDir}` : ``) title=proj.showName || showName target="_blank" rel="noopener")
+            span.dropdown-icon.fas.fa-cookie-bite 
+            | #{proj.showName || showName}
+            span.d-none.badge.badge-pill.badge-primary
+                span(class='fa ' + (proj.icon || 'fa-beel'))

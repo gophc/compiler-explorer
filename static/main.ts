@@ -23,11 +23,11 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 // Setup sentry before anything else so we can capture errors
-import {SetupSentry, SentryCapture} from './sentry.js';
+import { SetupSentry, SentryCapture } from './sentry.js';
 
 SetupSentry();
 
-import {ga as analytics} from './analytics.js';
+import { ga as analytics } from './analytics.js';
 
 import 'whatwg-fetch';
 import 'popper.js'; // eslint-disable-line requirejs/no-js-extension
@@ -43,30 +43,30 @@ import clipboard from 'clipboard';
 // We re-assign this
 let jsCookie = JsCookie;
 
-import {Sharing} from './sharing.js';
+import { Sharing } from './sharing.js';
 import * as Components from './components.js';
 import * as url from './url.js';
-import {Hub} from './hub.js';
-import {Settings, SiteSettings} from './settings.js';
-import {Alert} from './widgets/alert.js';
-import {Themer} from './themes.js';
+import { Hub } from './hub.js';
+import { Settings, SiteSettings } from './settings.js';
+import { Alert } from './widgets/alert.js';
+import { Themer } from './themes.js';
 import * as motd from './motd.js';
-import {SimpleCook} from './widgets/simplecook.js';
-import {HistoryWidget} from './widgets/history-widget.js';
+import { SimpleCook } from './widgets/simplecook.js';
+import { HistoryWidget } from './widgets/history-widget.js';
 import * as History from './history.js';
-import {Presentation} from './presentation.js';
-import {setupSiteTemplateWidgetButton} from './widgets/site-templates-widget.js';
-import {options} from './options.js';
-import {unwrap} from './assert.js';
+import { Presentation } from './presentation.js';
+import { setupSiteTemplateWidgetButton } from './widgets/site-templates-widget.js';
+import { options } from './options.js';
+import { unwrap } from './assert.js';
 
-import {Language, LanguageKey} from '../types/languages.interfaces.js';
-import {CompilerExplorerOptions} from './global.js';
-import {ComponentConfig, EmptyCompilerState, StateWithId, StateWithLanguage} from './components.interfaces.js';
+import { Language, LanguageKey } from '../types/languages.interfaces.js';
+import { CompilerExplorerOptions } from './global.js';
+import { ComponentConfig, EmptyCompilerState, StateWithId, StateWithLanguage } from './components.interfaces.js';
 
 import * as utils from '../shared/common-utils.js';
-import {Printerinator} from './print-view.js';
-import {formatISODate, updateAndCalcTopBarHeight} from './utils.js';
-import {localStorage, sessionThenLocalStorage} from './local.js';
+import { Printerinator } from './print-view.js';
+import { formatISODate, updateAndCalcTopBarHeight } from './utils.js';
+import { localStorage, sessionThenLocalStorage } from './local.js';
 
 const logos = require.context('../views/resources/logos', false, /\.(png|svg)$/);
 
@@ -266,12 +266,12 @@ function configFromEmbedded(embeddedUrl: string, defaultLangId: string) {
     } catch (e) {
         document.write(
             '<div style="padding: 10px; background: #fa564e; color: black;">' +
-                "An error was encountered while decoding the URL for this embed. Make sure the URL hasn't been " +
-                'truncated, otherwise if you believe your URL is valid please let us know on ' +
-                '<a href="https://github.com/compiler-explorer/compiler-explorer/issues" style="color: black;">' +
-                'our github' +
-                '</a>.' +
-                '</div>',
+            "An error was encountered while decoding the URL for this embed. Make sure the URL hasn't been " +
+            'truncated, otherwise if you believe your URL is valid please let us know on ' +
+            '<a href="https://github.com/compiler-explorer/compiler-explorer/issues" style="color: black;">' +
+            'our github' +
+            '</a>.' +
+            '</div>',
         );
         throw new Error('Embed url decode error');
     }
@@ -295,7 +295,7 @@ function configFromEmbedded(embeddedUrl: string, defaultLangId: string) {
 }
 
 // TODO(jeremy-rifkin): Unsure of the type, just typing enough for `content` at the moment
-function fixBugsInConfig(config: Record<string, any> & {content?: any[]}) {
+function fixBugsInConfig(config: Record<string, any> & { content?: any[] }) {
     if (config.activeItemIndex && config.activeItemIndex >= unwrap(config.content).length) {
         config.activeItemIndex = unwrap(config.content).length - 1;
     }
@@ -352,10 +352,10 @@ function findConfig(defaultConfig: ConfigType, options: CompilerExplorerOptions,
                     alertSystem.alert(
                         'Decode Error',
                         'An error was encountered while decoding the URL, the last locally saved configuration will ' +
-                            "be used if present.<br/><br/>Make sure the URL you're using hasn't been truncated, " +
-                            'otherwise if you believe your URL is valid please let us know on ' +
-                            '<a href="https://github.com/compiler-explorer/compiler-explorer/issues">our github</a>.',
-                        {isError: true},
+                        "be used if present.<br/><br/>Make sure the URL you're using hasn't been truncated, " +
+                        'otherwise if you believe your URL is valid please let us know on ' +
+                        '<a href="https://github.com/compiler-explorer/compiler-explorer/issues">our github</a>.',
+                        { isError: true },
                     );
                 }
             }
@@ -601,11 +601,11 @@ function start() {
     // share the same cookie domain for some settings.
     const cookieDomain = new RegExp(options.cookieDomainRe).exec(window.location.hostname);
     if (cookieDomain && cookieDomain[0]) {
-        jsCookie = jsCookie.withAttributes({domain: cookieDomain[0]});
+        jsCookie = jsCookie.withAttributes({ domain: cookieDomain[0] });
     }
 
     const defaultConfig = {
-        settings: {showPopoutIcon: false},
+        settings: { showPopoutIcon: false },
         content: [
             {
                 type: 'row',
@@ -647,6 +647,11 @@ function start() {
         layout = new GoldenLayout(defaultConfig, root);
         hub = new Hub(layout, subLangId, defaultLangId);
     }
+
+
+    (window || {})['$'] = $;
+    (window || {})['hub'] = hub;
+
 
     if (hub.hasTree()) {
         $('#add-tree').prop('disabled', true);

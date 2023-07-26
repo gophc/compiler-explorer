@@ -17,6 +17,21 @@ html(lang="en")
       |       location.href = '#{httpRoot}noscript';
       |     }
       |   }
+      |   (window || {}).$_GET = (function () {
+      |       var url = window.document.location.href.toString();
+      |       var u = url.split("?");
+      |       if (typeof (u[1]) === "string") {
+      |           u = u[1].split("&");
+      |           var _get = {};
+      |           for (var idx = 0; idx < u.length; idx++) {
+      |               var j = u[idx].split("=");
+      |               _get[j[0]] = decodeURIComponent(j[1]);
+      |           }
+      |           return _get;
+      |       } else {
+      |           return {};
+      |       }
+      |   })();
       | })();
 
     block styles

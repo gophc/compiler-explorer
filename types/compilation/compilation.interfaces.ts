@@ -113,6 +113,7 @@ export function bypassExecutionCache(value: BypassCache) {
 
 export type CompilationRequest = {
     source: string;
+    filename?: string;
     compiler: string;
     options: CompilationRequestOptions;
     lang: string | null;

@@ -79,6 +79,7 @@ function makeAnsiToHtml(color?: string): AnsiToHtml {
 export class Executor extends Pane<ExecutorState> {
     private contentRoot: JQuery<HTMLElement>;
     private readonly sourceEditorId: number | null;
+    public lastEditorId: number | null;
     private sourceTreeId: number | null;
     private readonly id: number;
     private deferCompiles: boolean;
@@ -424,6 +425,13 @@ export class Executor extends Pane<ExecutorState> {
             this.nextRequest = request;
             return;
         }
+
+        // KL_APPEND 
+        const edt = this.hub.editors.find(o => this.lastEditorId !== null && o.id == this.lastEditorId);
+        if (edt) {
+            request.filename = edt.filename || '';
+        }
+
         // this.eventHub.emit('compiling', this.id, this.compiler);
         // Display the spinner
         this.handleCompilationStatus({code: 4});
@@ -708,6 +716,8 @@ export class Executor extends Pane<ExecutorState> {
     }
 
     onEditorChange(editor: number, source: string, langId: string, compilerId?: number): void {
+        this.lastEditorId = editor;
+        
         if (this.sourceTreeId) {
             const tree = this.hub.getTreeById(this.sourceTreeId);
             if (tree) {

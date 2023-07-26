@@ -28,3 +28,4 @@ newrelic_agent.log
 
 # approval tests
 *.received.*
+pnpm-lock.yaml
